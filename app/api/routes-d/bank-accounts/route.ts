@@ -149,9 +149,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'isDefault must be a boolean' }, { status: 400 })
   }
 
-  try {
-    const existingAccountCount = await prisma.bankAccount.count({
-      where: { userId },
+  const existing = await prisma.bankAccount.findFirst({
+    where: {
+      userId,
+      accountNumber: { equals: accountNumber, mode: 'insensitive' },
+      bankCode: { equals: bankCode, mode: 'insensitive' },
+    },
+  })
+  if (existing) {
+    return NextResponse.json(
+      { error: 'Bank account already exists', existingId: existing.id },
+      { status: 409 },
+    )
+  }
+
+  const existingAccountCount = await prisma.bankAccount.count({
+    where: { userId },
+  })
+
+  const isFirstAccount = existingAccountCount === 0
+  const shouldBeDefault = isFirstAccount || body.isDefault === true
+
+  if (body.isDefault === true) {
+    await prisma.bankAccount.updateMany({
+      where: { userId, isDefault: true },
+      data: { isDefault: false },
     })
 
     const isFirstAccount = existingAccountCount === 0
